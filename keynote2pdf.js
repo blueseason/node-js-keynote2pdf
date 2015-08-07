@@ -50,9 +50,9 @@
 	/*	kCONFIG_DEFAULT
 	*/
 	var kCONFIG_DEFAULT = {
-		cleanup_timeout : 300000,
-		max_lifespan	: 3600000,
-		debug			: false
+		cleanup_timeout : 3000,
+		max_lifespan	: 36000,
+		debug			: true
 	};
 
 	/*	kCONVERSION_FOLDER_PATH
@@ -84,6 +84,58 @@
 						+ '\n'
 						+ '-- Convert to pdf\n'
 						+ 'export thePresentation to file targetFileHFSPath as PDF with properties {compression factor:0.3, export style:IndividualSlides, all stages:true, skipped slides:false}\n'
+						+ '\n'
+						+ '-- Done\n'
+						+ 'close thePresentation\n'
+						+ '\n'
+						+ 'return the POSIX path of targetFileHFSPath\n'
+						+ '\n'
+						+ 'end tell\n';
+
+	var kAPPLE_SCRIPT_TEMPLATE_NUMBERS = 'tell application "Numbers"\n'
+						+ '\n'
+						+ '--if playing is true then tell the front document to stop\n'
+						+ '\n'
+						+ 'set conversionFolderPath to "<FOLDER_PATH/>"\n'
+						+ '-- Open the presentation\n'
+						+ 'set pathToKey to "<NUMBERS_FILE_PATH/>"\n'
+						+ 'open (POSIX file pathToKey) as alias\n'
+						+ '\n'
+						+ '-- Save a reference to this document\n'
+						+ 'set thePresentation to document "<NUMBERS_FILE_NAME/>"\n'
+						+ '\n'
+						+ '-- Set up names and paths\n'
+						+ 'set documentName to the (name of thePresentation) & ".pdf"\n'
+						+ 'set the targetFileHFSPath to ((POSIX file conversionFolderPath as alias) & documentName) as string\n'
+						+ '\n'
+						+ '-- Convert to pdf\n'
+						+ 'export thePresentation to file targetFileHFSPath as PDF\n'
+						+ '\n'
+						+ '-- Done\n'
+						+ 'close thePresentation\n'
+						+ '\n'
+						+ 'return the POSIX path of targetFileHFSPath\n'
+						+ '\n'
+						+ 'end tell\n';
+
+	var kAPPLE_SCRIPT_TEMPLATE_PAGES = 'tell application "Pages"\n'
+						+ '\n'
+						+ '--if playing is true then tell the front document to stop\n'
+						+ '\n'
+						+ 'set conversionFolderPath to "<FOLDER_PATH/>"\n'
+						+ '-- Open the presentation\n'
+						+ 'set pathToKey to "<PAGES_FILE_PATH/>"\n'
+						+ 'open (POSIX file pathToKey) as alias\n'
+						+ '\n'
+						+ '-- Save a reference to this document\n'
+						+ 'set thePresentation to document "<PAGES_FILE_NAME/>"\n'
+						+ '\n'
+						+ '-- Set up names and paths\n'
+						+ 'set documentName to the (name of thePresentation) & ".pdf"\n'
+						+ 'set the targetFileHFSPath to ((POSIX file conversionFolderPath as alias) & documentName) as string\n'
+						+ '\n'
+						+ '-- Convert to pdf\n'
+						+ 'export thePresentation to file targetFileHFSPath as PDF\n'
 						+ '\n'
 						+ '-- Done\n'
 						+ 'close thePresentation\n'
@@ -149,11 +201,11 @@
 						  pdf	: null
 						});
 
-		pathToExtractionFolder = appendSlashIfNeeded( inInfos.folderPath );
+//		pathToExtractionFolder = appendSlashIfNeeded( inInfos.folderPath );
 		try {
-			zip = new AdmZip(inInfos.pathToFileToHandle);
+/*			zip = new AdmZip(inInfos.pathToFileToHandle);
 			// Notice: extractAllTo() is synchronous
-			zip.extractAllTo(pathToExtractionFolder, /*overwrite*/true);
+			zip.extractAllTo(pathToExtractionFolder,true);
 
 			fs.readdir(pathToExtractionFolder, function(err, files) {
 				var keynoteFileName = "";
@@ -163,17 +215,18 @@
 						return true;
 					}
 					return false;
-				});
-				if(keynoteFileName !== "") {
+				});*/
+				if(inInfos.pathToFileToHandle !== "") {
 					// To handle the fact that several requests could ask to convert
 					// documents with the same name, and to avoid conflicts in
 					// Keynote, we use the UUID as name of the document so Keynote
 					// is not confused (actullay, it is more the AppleScript which
 					// would be confusing Keynote)
-					oldPath = pathToExtractionFolder + keynoteFileName;
+/*					oldPath = pathToExtractionFolder + keynoteFileName;
 					newPath = pathToExtractionFolder + inInfos.uid + ".key";
 					fs.renameSync(oldPath, newPath);
-					inInfos.pathToFileToHandle = newPath;
+					inInfos.pathToFileToHandle = newPath;*/
+                    console.log("file path: %j", inInfos);
 					doConvertAndReturnPDF(inInfos, inCallback);
 				} else {
 					console.log("Error: Can't find the .key file in the unzipped document");
@@ -184,7 +237,7 @@
 					// Mark ready for cleanup
 					inInfos.done = true;
 				}
-			});
+//			});
 		} catch (e) {
 			console.log("Error extracting the .zip "+ e);
 			inCallback(new Error("Error extracting the .zip "+ e),
@@ -209,9 +262,19 @@
 						  pdf	: null
 						});
 
+        if(inInfos.ext == ".key"){
 		script = kAPPLE_SCRIPT_TEMPLATE.replace("<FOLDER_PATH/>", inInfos.folderPath)
 									   .replace("<KEYNOTE_FILE_PATH/>", inInfos.pathToFileToHandle)
 									   .replace("<KEYNOTE_FILE_NAME/>", path.basename(inInfos.pathToFileToHandle) /*inInfos.uid + ".key"*/);
+        }else if(inInfos.ext == ".numbers") {
+		script = kAPPLE_SCRIPT_TEMPLATE_NUMBERS.replace("<FOLDER_PATH/>", inInfos.folderPath)
+									   .replace("<NUMBERS_FILE_PATH/>", inInfos.pathToFileToHandle)
+									   .replace("<NUMBERS_FILE_NAME/>", path.basename(inInfos.pathToFileToHandle) /*inInfos.uid + ".numbers"*/);
+        }else if(inInfos.ext == ".pages") {
+		script = kAPPLE_SCRIPT_TEMPLATE_PAGES.replace("<FOLDER_PATH/>", inInfos.folderPath)
+									   .replace("<PAGES_FILE_PATH/>", inInfos.pathToFileToHandle)
+									   .replace("<PAGES_FILE_NAME/>", path.basename(inInfos.pathToFileToHandle) /*inInfos.uid + ".pages"*/);
+        }
 		//logIfDebug("-----------\n" + script + "\n----------");
 		
 		// We wait until the file is really here and valid
@@ -433,7 +496,7 @@
 
 		Main entry point. Handle everything
 	*/
-	function convert(inZipFilePath, inCallback) {
+	function convert(inZipFilePath,fileExt, inCallback) {
 		var theUid,
 			destFolder,
 			infos;
@@ -461,7 +524,8 @@
 					folderPath: destFolder,
 					timeStamp: Date.now(),
 					done: false,
-					pathToFileToHandle: inZipFilePath
+					pathToFileToHandle: inZipFilePath,
+                    ext: fileExt
 				};
 		gHandledDocs[theUid] = infos;
 

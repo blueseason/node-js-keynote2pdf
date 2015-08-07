@@ -13,8 +13,15 @@
 var http = require('http');
 var fs = require("fs"); // We handle files, don't we?
 var os = require("os"); // For storing the received zip in a temporary folder
-var keynote2pdf = require("keynote2pdf");
+var keynote2pdf = require("./keynote2pdf");
 
+function oc(a){
+    var o = {};
+    for(var i=0;i<a.length;i++) {
+        o[a[i]]='';
+        }
+    return o;
+}
 // In this example, the server expects to receive only zipped files, there is
 // no handler to dispatch the request, etc.
 
@@ -31,17 +38,25 @@ var gCount = 0;
 http.createServer(function(request, response) {
 	var destZipFile, destFileStream;
 
+    console.log("http url is %s",request.url);
+    var extensionAllowed = [".key",".pages",".numbers"];
+    extensionAllowed = oc(extensionAllowed);
+    var i = request.url.lastIndexOf(".");
+    var fileExt = (i<0)? '': request.url.substr(i);
+    console.log("ext is %s", fileExt);
+    if(fileExt in extensionAllowed) {
 // -------------------------------------------------------------------------
 // (2) Get the file sent by the client
 // -------------------------------------------------------------------------
-	destZipFile = os.tmpDir() + gCount + ".zip";
+	destZipFile = os.tmpDir() + gCount + fileExt;
 	destFileStream = fs.createWriteStream(destZipFile);
 	request.pipe(destFileStream);
 // -------------------------------------------------------------------------
 // (3) Once the file is received, convert it
 // -------------------------------------------------------------------------
 	request.on('end',function(){
-		keynote2pdf.convert(destZipFile, function(inError, inData) {
+            console.log("save recv file is done");
+		keynote2pdf.convert(destZipFile, fileExt,function(inError, inData) {
 			var readStream;
 // -------------------------------------------------------------------------
 // (4a) If we have an error, stop everything
@@ -63,6 +78,9 @@ http.createServer(function(request, response) {
 				// When the stream is ready, send the data to the client
 					readStream.on('open', function () {
 					// This pipe() API is amazing ;-)
+/*                        response.writeHead(200, {
+                              'Content-Length': fs.statSync(inData.pdf).size,
+                              'Content-Type': 'application/octet-stream' });*/
 						readStream.pipe(response);
 					});
 				// When all is done with no problem, do some cleanup
@@ -90,7 +108,8 @@ http.createServer(function(request, response) {
 			}
 		}); // keynote2pdf.convert
 	}); // request.on('end'...)
-}).listen(1337, "localhost", function(){
+    }
+}).listen(1337, "192.168.44.131", function(){
 	console.log("node server started, listening on localhost:1337");
 });
 
